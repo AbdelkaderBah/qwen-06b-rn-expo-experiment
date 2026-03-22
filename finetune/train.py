@@ -4,7 +4,7 @@ Requires NVIDIA GPU (CUDA). Run on RunPod.
 
 Usage:
   python finetune/train.py
-  python finetune/train.py --epochs 5 --lr 5e-5
+  python finetune/train.py --epochs 15 --lr 5e-5
   python finetune/train.py --export-gguf    # export to .gguf after training
 """
 
@@ -31,7 +31,7 @@ LORA_DROPOUT = 0
 SYSTEM_MESSAGE = "You are a React Native 0.82 and Expo expert. Answer with ONLY complete, runnable TypeScript/JSX code. No explanations, no markdown fences. Use functional components and hooks only."
 
 
-def load_dataset(tokenizer) -> Dataset:
+def load_dataset(tokenizer, eval_split: float = 0.15, seed: int = 42) -> tuple[Dataset, Dataset]:
     pairs = []
     with DATASET_PATH.open(encoding="utf-8") as f:
         for line in f:
@@ -43,8 +43,10 @@ def load_dataset(tokenizer) -> Dataset:
             ]
             text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
             pairs.append({"text": text})
-    print(f"[data] Loaded {len(pairs)} training examples")
-    return Dataset.from_list(pairs)
+    ds = Dataset.from_list(pairs).shuffle(seed=seed)
+    split = ds.train_test_split(test_size=eval_split, seed=seed)
+    print(f"[data] Loaded {len(pairs)} examples → {len(split['train'])} train / {len(split['test'])} eval")
+    return split["train"], split["test"]
 
 
 def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
@@ -71,7 +73,7 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
     )
 
     # Load dataset
-    dataset = load_dataset(tokenizer)
+    train_dataset, eval_dataset = load_dataset(tokenizer)
 
     # Training config
     training_args = SFTConfig(
@@ -81,10 +83,12 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
         gradient_accumulation_steps=4,
         learning_rate=lr,
         weight_decay=0.01,
-        warmup_steps=50,
+        warmup_steps=40,
         logging_steps=5,
         save_steps=50,
         save_total_limit=2,
+        eval_strategy="steps",
+        eval_steps=25,
         bf16=True,
         optim="adamw_8bit",
         seed=42,
@@ -96,12 +100,13 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
     # Train
     print(f"\n[train] Training: {epochs} epochs, lr={lr}, batch={batch_size}")
     print(f"   LoRA: r={LORA_R}, alpha={LORA_ALPHA}")
-    print(f"   Dataset: {len(dataset)} examples\n")
+    print(f"   Dataset: {len(train_dataset)} train / {len(eval_dataset)} eval\n")
 
     trainer = SFTTrainer(
         model=model,
         tokenizer=tokenizer,
-        train_dataset=dataset,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         args=training_args,
     )
 
@@ -135,7 +140,7 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument("--lr", type=float, default=5e-5)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--export-gguf", action="store_true")
