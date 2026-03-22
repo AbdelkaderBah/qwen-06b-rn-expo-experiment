@@ -74,11 +74,9 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
     # Load dataset
     train_dataset, eval_dataset = load_dataset()
 
-    def formatting_func(examples):
-        texts = []
-        for msgs in examples["messages"]:
-            texts.append(tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=False))
-        return texts
+    def formatting_func(example):
+        msgs = example["messages"]
+        return tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=False)
 
     # Training config
     training_args = SFTConfig(
