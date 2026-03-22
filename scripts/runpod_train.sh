@@ -25,7 +25,7 @@ echo "  Run ID:  $RUN_ID"
 echo "  Epochs: $EPOCHS | LR: $LR | Batch: $BATCH_SIZE"
 echo "═══════════════════════════════════════"
 
-cd /workspace
+cd "$(dirname "$0")/.."
 
 # Train + export GGUF
 uv run python finetune/train.py \
