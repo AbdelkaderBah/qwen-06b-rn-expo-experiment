@@ -23,7 +23,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Model config ---
 BASE_MODEL = "unsloth/Qwen3-0.6B"
-MAX_SEQ_LENGTH = 2048
+MAX_SEQ_LENGTH = 1024
 LORA_R = 16
 LORA_ALPHA = 16
 LORA_DROPOUT = 0
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--lr", type=float, default=2e-4)
-    parser.add_argument("--batch-size", type=int, default=2)
+    parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--export-gguf", action="store_true")
     args = parser.parse_args()
     train(args.epochs, args.lr, args.batch_size, args.export_gguf)

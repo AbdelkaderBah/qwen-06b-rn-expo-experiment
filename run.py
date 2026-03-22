@@ -35,9 +35,10 @@ def dataset(args):
     return run(f"uv run python data/generate_dataset.py --samples {samples}")
 
 
-@task("validate", help="Validate dataset with tsc")
+@task("validate", help="Validate dataset — extra args passed through (e.g. --llm-filter --dry-run)")
 def validate(args):
-    return run("uv run python data/validate_dataset.py")
+    extra = " ".join(args) if args else ""
+    return run(f"uv run python data/validate_dataset.py {extra}")
 
 
 @task("bench", help="Run benchmark — extra args passed through (e.g. --model X --repair 2 --seed 42)")

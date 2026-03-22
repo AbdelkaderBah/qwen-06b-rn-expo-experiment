@@ -1,17 +1,19 @@
 """
-Dataset validation — 2 layers:
+Dataset validation — 3 layers:
   1. TypeScript check (tsc --noEmit) — catches bad imports, syntax errors, type errors
-  2. LLM reviewer via Copilot SDK gpt-5.4 — semantic quality check
+  2. Heuristic filter — rejects non-component outputs (configs, prose, no React imports)
+  3. LLM quality filter via Copilot SDK gpt-5.1-mini — semantic quality check
 
 Run:
-  uv run python data/validate_dataset.py                    # layer 1 only
-  uv run python data/validate_dataset.py --llm-review       # both layers
+  uv run python data/validate_dataset.py                    # layers 1+2 only
+  uv run python data/validate_dataset.py --llm-filter       # all 3 layers
   uv run python data/validate_dataset.py --dry-run          # show results without writing
 """
 
 import argparse
 import asyncio
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -19,13 +21,49 @@ from copilot import CopilotClient
 from copilot.session import PermissionRequestResult, SessionEventType
 from ts_check import check_typescript
 
+REQUEST_TIMEOUT = 120.0
+
 DATASET = Path("data/dataset")
 INPUT = DATASET / "rn_expo_dataset.jsonl"
 OUTPUT = DATASET / "rn_expo_dataset_validated.jsonl"
 REJECTED = DATASET / "rn_expo_dataset_rejected.jsonl"
 
 
-# --- Layer 2: LLM reviewer ---
+# --- Layer 2: Heuristic filter ---
+
+RN_IMPORT_PATTERN = re.compile(
+    r"""import\s+.*from\s+['"](?:react-native|react|expo-|@expo/|@react-navigation/)""",
+)
+
+META_PHRASES = re.compile(
+    r"(?:create a question|generate a|write an example|coding challenge|explain how)",
+    re.IGNORECASE,
+)
+
+
+def heuristic_check(pair: dict) -> tuple[bool, str]:
+    output = pair["output"]
+    instruction = pair["instruction"]
+
+    if META_PHRASES.search(instruction):
+        return False, "meta-phrase in instruction"
+
+    if not RN_IMPORT_PATTERN.search(output):
+        return False, "no React/RN/Expo import — likely config or prose"
+
+    if output.count("export default") > 1:
+        return False, "multiple default exports"
+
+    if len(output.strip()) < 50:
+        return False, "output too short"
+
+    if output.count("...") > 3:
+        return False, "too many placeholders (...)"
+
+    return True, ""
+
+
+# --- Layer 3: LLM quality filter ---
 
 REVIEW_PROMPT = """You are a senior React Native 0.82 / Expo code reviewer validating a fine-tuning dataset.
 
@@ -42,17 +80,40 @@ Entries:
 """
 
 
-async def llm_review(pairs: list[dict]) -> list[dict]:
-    """Review pairs with gpt-5.4."""
-    client = CopilotClient()
-    await client.start()
-
+async def request_model_output(client: CopilotClient, model: str, prompt: str) -> str:
     session = await client.create_session(
         on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
-        model="gpt-5.4",
+        model=model,
         streaming=True,
     )
+    collected: list[str] = []
+    session.on(
+        lambda event: collected.append(event.data.delta_content or "")
+        if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA else None
+    )
+    try:
+        await session.send_and_wait(prompt, timeout=REQUEST_TIMEOUT)
+    finally:
+        await session.disconnect()
+    return "".join(collected).strip()
 
+
+def parse_json_response(content: str) -> list[dict] | None:
+    if content.startswith("```"):
+        content = content.split("```")[1]
+        if content.startswith("json"):
+            content = content[4:]
+    first = content.find("[")
+    last = content.rfind("]")
+    if first != -1 and last != -1:
+        content = content[first:last + 1]
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        return None
+
+
+async def llm_review(client: CopilotClient, pairs: list[dict]) -> list[dict]:
     entries = []
     for i, p in enumerate(pairs):
         entries.append({
@@ -62,27 +123,13 @@ async def llm_review(pairs: list[dict]) -> list[dict]:
         })
 
     prompt = REVIEW_PROMPT + json.dumps(entries, indent=2)
+    content = await request_model_output(client, "gpt-5.1-mini", prompt)
+    verdicts = parse_json_response(content)
 
-    collected: list[str] = []
-    session.on(
-        lambda event: collected.append(event.data.delta_content or "")
-        if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA else None
-    )
-    await session.send_and_wait(prompt, timeout=120.0)
-    await session.disconnect()
-    await client.stop()
-
-    content = "".join(collected).strip()
-    if content.startswith("```"):
-        content = content.split("```")[1]
-        if content.startswith("json"):
-            content = content[4:]
-
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        print(f"  ⚠️  LLM review parse error, keeping all pairs")
+    if verdicts is None:
+        print(f"  ⚠️  LLM review parse error, keeping all pairs in batch")
         return [{"index": i, "keep": True, "reason": "parse error"} for i in range(len(pairs))]
+    return verdicts
 
 
 # --- Main ---
@@ -95,7 +142,7 @@ def load_pairs() -> list[dict]:
     return pairs
 
 
-async def validate(llm_review_enabled: bool, dry_run: bool) -> None:
+async def validate(llm_filter_enabled: bool, dry_run: bool) -> None:
     pairs = load_pairs()
     print(f"📦 Loaded {len(pairs)} pairs from {INPUT}\n")
 
@@ -103,11 +150,11 @@ async def validate(llm_review_enabled: bool, dry_run: bool) -> None:
 
     # Layer 1: tsc
     print("🔍 Layer 1: TypeScript check (tsc --noEmit)")
-    auto_passed: list[tuple[int, dict]] = []
+    tsc_passed: list[tuple[int, dict]] = []
 
     for i, pair in enumerate(pairs):
         ts_ok, ts_err = check_typescript(pair["output"])
-        reasons = [] if ts_ok else [ts_err]
+        reasons = [] if ts_ok else [f"tsc: {ts_err}"]
         status = "pass" if ts_ok else "reject"
         results.append({"pair": pair, "status": status, "reasons": reasons})
 
@@ -117,31 +164,58 @@ async def validate(llm_review_enabled: bool, dry_run: bool) -> None:
             print(f"         → {ts_err[:120]}")
 
         if ts_ok:
-            auto_passed.append((i, pair))
+            tsc_passed.append((i, pair))
 
-    reject_count = len(pairs) - len(auto_passed)
-    print(f"\n  tsc: {len(auto_passed)} passed, {reject_count} rejected\n")
+    tsc_rejected = len(pairs) - len(tsc_passed)
+    print(f"\n  Layer 1: {len(tsc_passed)} passed, {tsc_rejected} rejected\n")
 
-    # Layer 2: LLM review
-    if llm_review_enabled and auto_passed:
-        print("🤖 Layer 2: LLM review (gpt-5.4)")
+    # Layer 2: Heuristic filter
+    print("🔍 Layer 2: Heuristic filter")
+    heuristic_passed: list[tuple[int, dict]] = []
+
+    for orig_idx, pair in tsc_passed:
+        h_ok, h_err = heuristic_check(pair)
+        if not h_ok:
+            results[orig_idx]["status"] = "reject"
+            results[orig_idx]["reasons"].append(f"heuristic: {h_err}")
+            print(f"  ❌ [{orig_idx+1}] {h_err} — {pair['instruction'][:60]}...")
+        else:
+            heuristic_passed.append((orig_idx, pair))
+
+    h_rejected = len(tsc_passed) - len(heuristic_passed)
+    print(f"\n  Layer 2: {len(heuristic_passed)} passed, {h_rejected} rejected\n")
+
+    # Layer 3: LLM quality filter
+    if llm_filter_enabled and heuristic_passed:
+        print("🤖 Layer 3: LLM quality filter (gpt-5.1-mini)")
+        client = CopilotClient()
+        await client.start()
+
         batch_size = 10
-        passed_pairs = [p for _, p in auto_passed]
+        llm_rejected = 0
 
-        for batch_start in range(0, len(passed_pairs), batch_size):
-            batch = passed_pairs[batch_start:batch_start + batch_size]
-            print(f"  Reviewing batch {batch_start // batch_size + 1} ({len(batch)} pairs)...")
+        for batch_start in range(0, len(heuristic_passed), batch_size):
+            batch_items = heuristic_passed[batch_start:batch_start + batch_size]
+            batch_pairs = [p for _, p in batch_items]
+            print(f"  Batch {batch_start // batch_size + 1} ({len(batch_pairs)} pairs)...", end=" ", flush=True)
 
-            verdicts = await llm_review(batch)
+            verdicts = await llm_review(client, batch_pairs)
+            batch_rejected = 0
             for v in verdicts:
-                idx = batch_start + v["index"]
-                original_idx = auto_passed[idx][0]
+                idx = v.get("index", 0)
+                if idx >= len(batch_items):
+                    continue
+                orig_idx = batch_items[idx][0]
                 if not v.get("keep", True):
-                    results[original_idx]["status"] = "reject"
-                    results[original_idx]["reasons"].append(f"LLM: {v.get('reason', '')}")
-                    print(f"    ❌ [{idx+1}] {v.get('reason', '')}")
-                else:
-                    print(f"    ✅ [{idx+1}]")
+                    results[orig_idx]["status"] = "reject"
+                    results[orig_idx]["reasons"].append(f"llm: {v.get('reason', '')}")
+                    batch_rejected += 1
+                    llm_rejected += 1
+
+            print(f"{'✅' if batch_rejected == 0 else f'❌ {batch_rejected} rejected'}")
+
+        await client.stop()
+        print(f"\n  Layer 3: {len(heuristic_passed) - llm_rejected} passed, {llm_rejected} rejected\n")
 
     # Summary
     kept = [r for r in results if r["status"] == "pass"]
@@ -163,7 +237,7 @@ async def validate(llm_review_enabled: bool, dry_run: bool) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--llm-review", action="store_true", help="Enable gpt-5.4 LLM review (layer 2)")
+    parser.add_argument("--llm-filter", action="store_true", help="Enable gpt-5.1-mini quality filter (layer 3)")
     parser.add_argument("--dry-run", action="store_true", help="Show results without writing files")
     args = parser.parse_args()
-    asyncio.run(validate(args.llm_review, args.dry_run))
+    asyncio.run(validate(args.llm_filter, args.dry_run))
