@@ -1,0 +1,139 @@
+"""
+Phase 4 — Fine-tuning Qwen 0.6B with Unsloth + LoRA
+Requires NVIDIA GPU (CUDA). Run on your RTX 3080.
+
+Usage:
+  python finetune/train.py
+  python finetune/train.py --epochs 5 --lr 2e-4
+  python finetune/train.py --export-gguf    # export to .gguf after training
+"""
+
+import argparse
+import json
+from pathlib import Path
+
+from datasets import Dataset
+from unsloth import FastLanguageModel
+from trl import SFTTrainer, SFTConfig
+
+# --- Paths ---
+DATASET_PATH = Path("data/dataset/rn_expo_dataset.jsonl")
+OUTPUT_DIR = Path("finetune/output")
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# --- Model config ---
+BASE_MODEL = "unsloth/Qwen3-0.6B"
+MAX_SEQ_LENGTH = 2048
+LORA_R = 16
+LORA_ALPHA = 16
+LORA_DROPOUT = 0
+
+# --- Prompt template ---
+PROMPT_TEMPLATE = """### Instruction:
+{instruction}
+
+### Response:
+{output}"""
+
+
+def load_dataset() -> Dataset:
+    pairs = []
+    with DATASET_PATH.open(encoding="utf-8") as f:
+        for line in f:
+            entry = json.loads(line)
+            pairs.append({
+                "text": PROMPT_TEMPLATE.format(
+                    instruction=entry["instruction"],
+                    output=entry["output"],
+                ),
+            })
+    print(f"[data] Loaded {len(pairs)} training examples")
+    return Dataset.from_list(pairs)
+
+
+def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
+    # Load model + tokenizer
+    print(f"[model] Loading {BASE_MODEL}...")
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name=BASE_MODEL,
+        max_seq_length=MAX_SEQ_LENGTH,
+        load_in_4bit=True,
+    )
+
+    # Add LoRA adapters
+    model = FastLanguageModel.get_peft_model(
+        model,
+        r=LORA_R,
+        lora_alpha=LORA_ALPHA,
+        lora_dropout=LORA_DROPOUT,
+        target_modules=[
+            "q_proj", "k_proj", "v_proj", "o_proj",
+            "gate_proj", "up_proj", "down_proj",
+        ],
+        bias="none",
+        use_gradient_checkpointing="unsloth",
+    )
+
+    # Load dataset
+    dataset = load_dataset()
+
+    # Training config
+    training_args = SFTConfig(
+        output_dir=str(OUTPUT_DIR / "checkpoints"),
+        num_train_epochs=epochs,
+        per_device_train_batch_size=batch_size,
+        gradient_accumulation_steps=4,
+        learning_rate=lr,
+        weight_decay=0.01,
+        warmup_steps=10,
+        logging_steps=5,
+        save_steps=50,
+        save_total_limit=2,
+        bf16=True,
+        optim="adamw_8bit",
+        seed=42,
+        max_seq_length=MAX_SEQ_LENGTH,
+        dataset_text_field="text",
+        report_to="none",
+    )
+
+    # Train
+    print(f"\n[train] Training: {epochs} epochs, lr={lr}, batch={batch_size}")
+    print(f"   LoRA: r={LORA_R}, alpha={LORA_ALPHA}")
+    print(f"   Dataset: {len(dataset)} examples\n")
+
+    trainer = SFTTrainer(
+        model=model,
+        tokenizer=tokenizer,
+        train_dataset=dataset,
+        args=training_args,
+    )
+
+    trainer.train()
+
+    # Save LoRA adapter
+    lora_path = OUTPUT_DIR / "lora-adapter"
+    model.save_pretrained(str(lora_path))
+    tokenizer.save_pretrained(str(lora_path))
+    print(f"\n[save] LoRA adapter saved -> {lora_path}")
+
+    # Export to GGUF
+    if export_gguf:
+        print("\n[export] Exporting to GGUF (Q4_K_M)...")
+        gguf_path = OUTPUT_DIR / "gguf"
+        model.save_pretrained_gguf(
+            str(gguf_path),
+            tokenizer,
+            quantization_method="q4_k_m",
+        )
+        print(f"[save] GGUF exported -> {gguf_path}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--lr", type=float, default=2e-4)
+    parser.add_argument("--batch-size", type=int, default=2)
+    parser.add_argument("--export-gguf", action="store_true")
+    args = parser.parse_args()
+    train(args.epochs, args.lr, args.batch_size, args.export_gguf)

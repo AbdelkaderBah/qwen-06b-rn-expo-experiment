@@ -1,0 +1,8 @@
+- Utiliser LangChain comme "chef d'orchestre" et aider (ou un outil Open Source comme Continue.dev / OpenCode) comme interface d'édition est la stratégie gagnante pour transformer ton Qwen 0.6B en un copilote réel dans ton IDE.
+- Add a citation of Copilot ToS to mention that we don't do mass scraping.
+- Intégrer `tsc --noEmit` (eval/ts-checker) comme feedback loop dans la chaîne LangChain + Aider :
+  - Qwen génère du code → tsc valide les imports/types → si erreurs, LangChain re-prompt avec les erreurs TS → Qwen corrige → boucle jusqu'à ✅
+  - Compense les hallucinations d'un modèle 0.6B avec une validation déterministe gratuite
+  - Pattern "generate → validate → retry" utilisé par les meilleurs agents de code
+- Réutiliser le pipeline (génération + tsc validation) pour produire des datasets pour d'autres petits modèles (lfm2.5 1.2B, Qwen 4B, Mistral 3B, Nemotron-nano). Le tsc checker est model-agnostic — tout code qui passe tsc est valide, peu importe qui l'a généré.
+- Faire le projet pour Laravel que je maitrise deja (Plus de 10 ans d'exp)

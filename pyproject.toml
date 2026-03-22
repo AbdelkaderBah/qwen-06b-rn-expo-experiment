@@ -1,0 +1,33 @@
+[project]
+name = "qwen-06b-rn-expo-experiment"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=4.8.3",
+    "github-copilot-sdk>=0.2.0",
+    "httpx>=0.28.1",
+    "langchain>=1.2.13",
+    "marimo>=0.21.1",
+    "python-dotenv>=1.2.2",
+    "ragas>=0.4.3",
+    "rank-bm25>=0.2.2",
+]
+
+[project.optional-dependencies]
+train = [
+    "torch>=2.10.0",
+    "torchvision>=0.25.0",
+    "peft>=0.18.1",
+    "trl>=0.23.0",
+    "unsloth>=2025.11.1",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu126" }
+torchvision = { index = "pytorch-cu126" }
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
