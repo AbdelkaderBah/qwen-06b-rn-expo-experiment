@@ -1,0 +1,75 @@
+{
+  "model": "google/gemma-3-1b",
+  "total": 30,
+  "passed": 4,
+  "rate": 13.3,
+  "avg_time": 2.4,
+  "categories": {
+    "components": {
+      "pass": 3,
+      "total": 3
+    },
+    "flatlist": {
+      "pass": 0,
+      "total": 3
+    },
+    "styling": {
+      "pass": 1,
+      "total": 2
+    },
+    "navigation": {
+      "pass": 0,
+      "total": 4
+    },
+    "hooks": {
+      "pass": 0,
+      "total": 3
+    },
+    "expo": {
+      "pass": 0,
+      "total": 5
+    },
+    "animation": {
+      "pass": 0,
+      "total": 4
+    },
+    "forms": {
+      "pass": 0,
+      "total": 1
+    },
+    "async": {
+      "pass": 0,
+      "total": 1
+    },
+    "storage": {
+      "pass": 0,
+      "total": 1
+    },
+    "expo-router": {
+      "pass": 0,
+      "total": 1
+    },
+    "performance": {
+      "pass": 0,
+      "total": 1
+    },
+    "typescript": {
+      "pass": 0,
+      "total": 1
+    }
+  },
+  "difficulties": {
+    "easy": {
+      "pass": 2,
+      "total": 9
+    },
+    "medium": {
+      "pass": 2,
+      "total": 16
+    },
+    "hard": {
+      "pass": 0,
+      "total": 5
+    }
+  }
+}

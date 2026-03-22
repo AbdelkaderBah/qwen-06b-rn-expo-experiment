@@ -10,13 +10,8 @@ __pycache__/
 # Node
 node_modules/
 
-# Data (large files)
+# Data (raw docs are large and re-downloadable)
 data/raw/
-data/processed/
-data/dataset/
-
-# Eval results
-eval/results/
 
 # Fine-tuning outputs
 finetune/output/

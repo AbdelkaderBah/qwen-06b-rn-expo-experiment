@@ -1,0 +1,107 @@
+{
+  "model": "qwen/qwen3.5-9b",
+  "timestamp": "2026-03-22T00:37:11.672779+00:00",
+  "bench_version": "0330016b",
+  "inference": {
+    "temperature": 0.2,
+    "max_tokens": 2048,
+    "top_p": 1.0,
+    "seed": null,
+    "quantization": "unknown"
+  },
+  "total": 30,
+  "passed_at_1": 12,
+  "rate_at_1": 40.0,
+  "max_repair": 0,
+  "passed_after_repair": 12,
+  "rate_after_repair": 40.0,
+  "avg_time": 13.9,
+  "median_time": 13.1,
+  "tokens_per_second": 83.1,
+  "total_prompt_tokens": 2333,
+  "total_completion_tokens": 34570,
+  "categories": {
+    "components": {
+      "pass_at_1": 3,
+      "pass_total": 3,
+      "total": 3
+    },
+    "flatlist": {
+      "pass_at_1": 2,
+      "pass_total": 2,
+      "total": 3
+    },
+    "styling": {
+      "pass_at_1": 1,
+      "pass_total": 1,
+      "total": 2
+    },
+    "navigation": {
+      "pass_at_1": 0,
+      "pass_total": 0,
+      "total": 4
+    },
+    "hooks": {
+      "pass_at_1": 3,
+      "pass_total": 3,
+      "total": 3
+    },
+    "expo": {
+      "pass_at_1": 0,
+      "pass_total": 0,
+      "total": 5
+    },
+    "animation": {
+      "pass_at_1": 1,
+      "pass_total": 1,
+      "total": 4
+    },
+    "forms": {
+      "pass_at_1": 1,
+      "pass_total": 1,
+      "total": 1
+    },
+    "async": {
+      "pass_at_1": 1,
+      "pass_total": 1,
+      "total": 1
+    },
+    "storage": {
+      "pass_at_1": 0,
+      "pass_total": 0,
+      "total": 1
+    },
+    "expo-router": {
+      "pass_at_1": 0,
+      "pass_total": 0,
+      "total": 1
+    },
+    "performance": {
+      "pass_at_1": 0,
+      "pass_total": 0,
+      "total": 1
+    },
+    "typescript": {
+      "pass_at_1": 0,
+      "pass_total": 0,
+      "total": 1
+    }
+  },
+  "difficulties": {
+    "easy": {
+      "pass_at_1": 5,
+      "pass_total": 5,
+      "total": 9
+    },
+    "medium": {
+      "pass_at_1": 6,
+      "pass_total": 6,
+      "total": 16
+    },
+    "hard": {
+      "pass_at_1": 1,
+      "pass_total": 1,
+      "total": 5
+    }
+  }
+}

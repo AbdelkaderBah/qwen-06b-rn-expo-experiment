@@ -1,0 +1,94 @@
+{
+  "model": "qwen2.5-7b-instruct-1m",
+  "total": 30,
+  "passed_at_1": 16,
+  "rate_at_1": 53.3,
+  "max_repair": 0,
+  "passed_after_repair": 16,
+  "rate_after_repair": 53.3,
+  "avg_time": 2.5,
+  "categories": {
+    "components": {
+      "pass_at_1": 3,
+      "pass_total": 3,
+      "total": 3
+    },
+    "flatlist": {
+      "pass_at_1": 3,
+      "pass_total": 3,
+      "total": 3
+    },
+    "styling": {
+      "pass_at_1": 1,
+      "pass_total": 1,
+      "total": 2
+    },
+    "navigation": {
+      "pass_at_1": 2,
+      "pass_total": 2,
+      "total": 4
+    },
+    "hooks": {
+      "pass_at_1": 2,
+      "pass_total": 2,
+      "total": 3
+    },
+    "expo": {
+      "pass_at_1": 2,
+      "pass_total": 2,
+      "total": 5
+    },
+    "animation": {
+      "pass_at_1": 0,
+      "pass_total": 0,
+      "total": 4
+    },
+    "forms": {
+      "pass_at_1": 1,
+      "pass_total": 1,
+      "total": 1
+    },
+    "async": {
+      "pass_at_1": 1,
+      "pass_total": 1,
+      "total": 1
+    },
+    "storage": {
+      "pass_at_1": 1,
+      "pass_total": 1,
+      "total": 1
+    },
+    "expo-router": {
+      "pass_at_1": 0,
+      "pass_total": 0,
+      "total": 1
+    },
+    "performance": {
+      "pass_at_1": 0,
+      "pass_total": 0,
+      "total": 1
+    },
+    "typescript": {
+      "pass_at_1": 0,
+      "pass_total": 0,
+      "total": 1
+    }
+  },
+  "difficulties": {
+    "easy": {
+      "pass_at_1": 6,
+      "pass_total": 6,
+      "total": 9
+    },
+    "medium": {
+      "pass_at_1": 9,
+      "pass_total": 9,
+      "total": 16
+    },
+    "hard": {
+      "pass_at_1": 1,
+      "pass_total": 1,
+      "total": 5
+    }
+  }
+}

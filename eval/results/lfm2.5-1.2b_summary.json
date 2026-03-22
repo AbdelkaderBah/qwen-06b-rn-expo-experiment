@@ -1,0 +1,75 @@
+{
+  "model": "lfm2.5-1.2b",
+  "total": 30,
+  "passed": 5,
+  "rate": 16.7,
+  "avg_time": 1.1,
+  "categories": {
+    "components": {
+      "pass": 2,
+      "total": 3
+    },
+    "flatlist": {
+      "pass": 1,
+      "total": 3
+    },
+    "styling": {
+      "pass": 0,
+      "total": 2
+    },
+    "navigation": {
+      "pass": 0,
+      "total": 4
+    },
+    "hooks": {
+      "pass": 1,
+      "total": 3
+    },
+    "expo": {
+      "pass": 0,
+      "total": 5
+    },
+    "animation": {
+      "pass": 0,
+      "total": 4
+    },
+    "forms": {
+      "pass": 0,
+      "total": 1
+    },
+    "async": {
+      "pass": 1,
+      "total": 1
+    },
+    "storage": {
+      "pass": 0,
+      "total": 1
+    },
+    "expo-router": {
+      "pass": 0,
+      "total": 1
+    },
+    "performance": {
+      "pass": 0,
+      "total": 1
+    },
+    "typescript": {
+      "pass": 0,
+      "total": 1
+    }
+  },
+  "difficulties": {
+    "easy": {
+      "pass": 3,
+      "total": 9
+    },
+    "medium": {
+      "pass": 2,
+      "total": 16
+    },
+    "hard": {
+      "pass": 0,
+      "total": 5
+    }
+  }
+}
