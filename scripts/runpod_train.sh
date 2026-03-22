@@ -34,10 +34,11 @@ uv run python finetune/train.py \
   --batch-size "$BATCH_SIZE" \
   --export-gguf
 
-echo "[upload] Pushing GGUF to HuggingFace: $HF_REPO (run: $RUN_ID)"
-pip install -q huggingface_hub
-RUN_ID="$RUN_ID" python - <<'PYEOF'
+echo "[upload] Pushing artifacts to HuggingFace: $HF_REPO (run: $RUN_ID)"
+EPOCHS="$EPOCHS" LR="$LR" BATCH_SIZE="$BATCH_SIZE" RUN_ID="$RUN_ID" \
+  uv run python - <<'PYEOF'
 import os, json
+from pathlib import Path
 from huggingface_hub import HfApi
 
 api = HfApi(token=os.environ["HF_TOKEN"])
@@ -45,18 +46,9 @@ repo_id = os.environ["HF_REPO"]
 run_id = os.environ["RUN_ID"]
 run_prefix = f"runs/{run_id}"
 
-# Create repo if it doesn't exist
 api.create_repo(repo_id, exist_ok=True, repo_type="model")
 
-# Upload GGUF files under runs/<timestamp>/gguf/
-api.upload_folder(
-    repo_id=repo_id,
-    folder_path="finetune/output/gguf",
-    path_in_repo=f"{run_prefix}/gguf",
-    commit_message=f"[{run_id}] Upload GGUF model",
-)
-
-# Upload LoRA adapter under runs/<timestamp>/lora-adapter/
+# Upload LoRA adapter (always available)
 api.upload_folder(
     repo_id=repo_id,
     folder_path="finetune/output/lora-adapter",
@@ -64,7 +56,27 @@ api.upload_folder(
     commit_message=f"[{run_id}] Upload LoRA adapter",
 )
 
-# Save training params as metadata
+# Upload GGUF if it was exported
+gguf_path = Path("finetune/output/gguf")
+if gguf_path.exists() and any(gguf_path.glob("*.gguf")):
+    api.upload_folder(
+        repo_id=repo_id,
+        folder_path=str(gguf_path),
+        path_in_repo=f"{run_prefix}/gguf",
+        commit_message=f"[{run_id}] Upload GGUF model",
+    )
+
+# Upload merged 16-bit if GGUF failed and merged was saved instead
+merged_path = Path("finetune/output/merged")
+if merged_path.exists():
+    api.upload_folder(
+        repo_id=repo_id,
+        folder_path=str(merged_path),
+        path_in_repo=f"{run_prefix}/merged-16bit",
+        commit_message=f"[{run_id}] Upload merged 16-bit weights",
+    )
+
+# Save training params
 params = {
     "run_id": run_id,
     "epochs": os.environ.get("EPOCHS", "3"),

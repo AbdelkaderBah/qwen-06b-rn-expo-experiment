@@ -121,12 +121,20 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
     if export_gguf:
         print("\n[export] Exporting to GGUF (Q4_K_M)...")
         gguf_path = OUTPUT_DIR / "gguf"
-        model.save_pretrained_gguf(
-            str(gguf_path),
-            tokenizer,
-            quantization_method="q4_k_m",
-        )
-        print(f"[save] GGUF exported -> {gguf_path}")
+        try:
+            model.save_pretrained_gguf(
+                str(gguf_path),
+                tokenizer,
+                quantization_method="q4_k_m",
+            )
+            print(f"[save] GGUF exported -> {gguf_path}")
+        except RuntimeError:
+            print("[warn] Unsloth GGUF export failed (llama.cpp build issue)")
+            print("[export] Saving merged 16-bit model instead...")
+            merged_path = OUTPUT_DIR / "merged"
+            model.save_pretrained_merged(str(merged_path), tokenizer)
+            print(f"[save] Merged model saved -> {merged_path}")
+            print("[hint] Convert locally: llama-quantize model.gguf output.gguf Q4_K_M")
 
 
 if __name__ == "__main__":
