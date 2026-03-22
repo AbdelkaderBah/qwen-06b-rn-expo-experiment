@@ -4,7 +4,7 @@ Requires NVIDIA GPU (CUDA). Run on RunPod.
 
 Usage:
   python finetune/train.py
-  python finetune/train.py --epochs 15 --lr 5e-5
+  python finetune/train.py --epochs 3 --lr 1e-4
   python finetune/train.py --export-gguf    # export to .gguf after training
 """
 
@@ -14,7 +14,7 @@ from pathlib import Path
 
 from datasets import Dataset
 from unsloth import FastLanguageModel
-from trl import SFTTrainer, SFTConfig
+from trl import SFTTrainer, SFTConfig, DataCollatorForCompletionOnlyLM
 
 # --- Paths ---
 DATASET_PATH = Path("data/dataset/rn_expo_dataset.jsonl")
@@ -24,11 +24,13 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # --- Model config ---
 BASE_MODEL = "unsloth/Qwen3-0.6B"
 MAX_SEQ_LENGTH = 2048
-LORA_R = 8
+LORA_R = 16
 LORA_ALPHA = 16
 LORA_DROPOUT = 0
 
 SYSTEM_MESSAGE = "You are a React Native 0.82 and Expo expert. Answer with ONLY complete, runnable TypeScript/JSX code. No explanations, no markdown fences. Use functional components and hooks only."
+
+RESPONSE_TEMPLATE = "<|im_start|>assistant\n"
 
 
 def load_dataset(tokenizer, eval_split: float = 0.15, seed: int = 42) -> tuple[Dataset, Dataset]:
@@ -75,6 +77,12 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
     # Load dataset
     train_dataset, eval_dataset = load_dataset(tokenizer)
 
+    # Loss masking: only compute loss on assistant response, not system/user prompt
+    collator = DataCollatorForCompletionOnlyLM(
+        response_template=RESPONSE_TEMPLATE,
+        tokenizer=tokenizer,
+    )
+
     # Training config
     training_args = SFTConfig(
         output_dir=str(OUTPUT_DIR / "checkpoints"),
@@ -83,7 +91,7 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
         gradient_accumulation_steps=4,
         learning_rate=lr,
         weight_decay=0.01,
-        warmup_steps=40,
+        warmup_ratio=0.1,
         logging_steps=5,
         save_steps=50,
         save_total_limit=2,
@@ -93,6 +101,7 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
         optim="adamw_8bit",
         seed=42,
         max_seq_length=MAX_SEQ_LENGTH,
+        packing=True,
         dataset_text_field="text",
         report_to="none",
     )
@@ -107,6 +116,7 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
         tokenizer=tokenizer,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
+        data_collator=collator,
         args=training_args,
     )
 
@@ -140,8 +150,8 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, default=15)
-    parser.add_argument("--lr", type=float, default=5e-5)
+    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--export-gguf", action="store_true")
     args = parser.parse_args()
