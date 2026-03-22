@@ -14,7 +14,7 @@ set -euo pipefail
 #   BATCH_SIZE      — default: 4
 #   RUNPOD_POD_ID   — auto-set by RunPod, used for auto-stop
 
-EPOCHS="${EPOCHS:-3}"
+EPOCHS="${EPOCHS:-10}"
 LR="${LR:-1e-4}"
 BATCH_SIZE="${BATCH_SIZE:-4}"
 RUN_ID="$(date -u +%Y%m%d-%H%M%S)"

@@ -4,7 +4,7 @@ set -euo pipefail
 # ─── RunPod one-click setup & train ───
 # Set these env vars in RunPod pod config:
 #   HF_TOKEN   — HuggingFace write token
-#   HF_REPO    — e.g. "kadermh/qwen-06b-rn-expo"
+#   HF_REPO    — e.g. "your-org/your-model"
 
 REPO_URL="${GIT_REPO_URL:?Set GIT_REPO_URL in RunPod pod config}"
 REPO_NAME="$(basename "$REPO_URL" .git)"

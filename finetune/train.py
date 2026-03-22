@@ -31,7 +31,7 @@ LORA_DROPOUT = 0
 SYSTEM_MESSAGE = "You are a React Native 0.82 and Expo expert. Answer with ONLY complete, runnable TypeScript/JSX code. No explanations, no markdown fences. Use functional components and hooks only."
 
 
-def load_dataset(tokenizer, eval_split: float = 0.15, seed: int = 42) -> tuple[Dataset, Dataset]:
+def load_dataset(eval_split: float = 0.15, seed: int = 42) -> tuple[Dataset, Dataset]:
     pairs = []
     with DATASET_PATH.open(encoding="utf-8") as f:
         for line in f:
@@ -41,8 +41,7 @@ def load_dataset(tokenizer, eval_split: float = 0.15, seed: int = 42) -> tuple[D
                 {"role": "user", "content": entry["instruction"]},
                 {"role": "assistant", "content": entry["output"]},
             ]
-            text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
-            pairs.append({"text": text})
+            pairs.append({"messages": messages})
     ds = Dataset.from_list(pairs).shuffle(seed=seed)
     split = ds.train_test_split(test_size=eval_split, seed=seed)
     print(f"[data] Loaded {len(pairs)} examples → {len(split['train'])} train / {len(split['test'])} eval")
@@ -73,7 +72,7 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
     )
 
     # Load dataset
-    train_dataset, eval_dataset = load_dataset(tokenizer)
+    train_dataset, eval_dataset = load_dataset()
 
     # Training config
     training_args = SFTConfig(
@@ -94,7 +93,7 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
         seed=42,
         max_seq_length=MAX_SEQ_LENGTH,
         packing=False,
-        dataset_text_field="text",
+        assistant_only_loss=True,
         report_to="none",
     )
 
@@ -141,7 +140,7 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--export-gguf", action="store_true")
