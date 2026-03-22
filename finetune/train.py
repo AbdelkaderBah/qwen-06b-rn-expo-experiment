@@ -14,7 +14,7 @@ from pathlib import Path
 
 from datasets import Dataset
 from unsloth import FastLanguageModel
-from trl import SFTTrainer, SFTConfig, DataCollatorForCompletionOnlyLM
+from trl import SFTTrainer, SFTConfig
 
 # --- Paths ---
 DATASET_PATH = Path("data/dataset/rn_expo_dataset.jsonl")
@@ -29,8 +29,6 @@ LORA_ALPHA = 16
 LORA_DROPOUT = 0
 
 SYSTEM_MESSAGE = "You are a React Native 0.82 and Expo expert. Answer with ONLY complete, runnable TypeScript/JSX code. No explanations, no markdown fences. Use functional components and hooks only."
-
-RESPONSE_TEMPLATE = "<|im_start|>assistant\n"
 
 
 def load_dataset(tokenizer, eval_split: float = 0.15, seed: int = 42) -> tuple[Dataset, Dataset]:
@@ -77,12 +75,6 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
     # Load dataset
     train_dataset, eval_dataset = load_dataset(tokenizer)
 
-    # Loss masking: only compute loss on assistant response, not system/user prompt
-    collator = DataCollatorForCompletionOnlyLM(
-        response_template=RESPONSE_TEMPLATE,
-        tokenizer=tokenizer,
-    )
-
     # Training config
     training_args = SFTConfig(
         output_dir=str(OUTPUT_DIR / "checkpoints"),
@@ -116,7 +108,6 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
         tokenizer=tokenizer,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        data_collator=collator,
         args=training_args,
     )
 
