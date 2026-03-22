@@ -74,9 +74,14 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
     # Load dataset
     train_dataset, eval_dataset = load_dataset()
 
-    def formatting_func(example):
-        msgs = example["messages"]
-        return tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=False)
+    def formatting_func(examples):
+        messages = examples["messages"]
+        # Single example: messages is a list of dicts (the conversation)
+        if messages and isinstance(messages[0], dict):
+            return [tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)]
+        # Batch: messages is a list of conversations
+        return [tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=False)
+                for msgs in messages]
 
     # Training config
     training_args = SFTConfig(
