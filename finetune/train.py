@@ -93,7 +93,7 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
         optim="adamw_8bit",
         seed=42,
         max_seq_length=MAX_SEQ_LENGTH,
-        packing=True,
+        packing=False,
         dataset_text_field="text",
         report_to="none",
     )
