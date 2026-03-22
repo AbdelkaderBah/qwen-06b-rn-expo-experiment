@@ -1,10 +1,10 @@
 """
 Phase 4 — Fine-tuning Qwen 0.6B with Unsloth + LoRA
-Requires NVIDIA GPU (CUDA). Run on your RTX 3080.
+Requires NVIDIA GPU (CUDA). Run on RunPod.
 
 Usage:
   python finetune/train.py
-  python finetune/train.py --epochs 5 --lr 2e-4
+  python finetune/train.py --epochs 5 --lr 5e-5
   python finetune/train.py --export-gguf    # export to .gguf after training
 """
 
@@ -24,29 +24,25 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # --- Model config ---
 BASE_MODEL = "unsloth/Qwen3-0.6B"
 MAX_SEQ_LENGTH = 2048
-LORA_R = 16
+LORA_R = 8
 LORA_ALPHA = 16
 LORA_DROPOUT = 0
 
-# --- Prompt template ---
-PROMPT_TEMPLATE = """### Instruction:
-{instruction}
-
-### Response:
-{output}"""
+SYSTEM_MESSAGE = "You are a React Native 0.82 and Expo expert. Answer with ONLY complete, runnable TypeScript/JSX code. No explanations, no markdown fences. Use functional components and hooks only."
 
 
-def load_dataset() -> Dataset:
+def load_dataset(tokenizer) -> Dataset:
     pairs = []
     with DATASET_PATH.open(encoding="utf-8") as f:
         for line in f:
             entry = json.loads(line)
-            pairs.append({
-                "text": PROMPT_TEMPLATE.format(
-                    instruction=entry["instruction"],
-                    output=entry["output"],
-                ),
-            })
+            messages = [
+                {"role": "system", "content": SYSTEM_MESSAGE},
+                {"role": "user", "content": entry["instruction"]},
+                {"role": "assistant", "content": entry["output"]},
+            ]
+            text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+            pairs.append({"text": text})
     print(f"[data] Loaded {len(pairs)} training examples")
     return Dataset.from_list(pairs)
 
@@ -75,7 +71,7 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
     )
 
     # Load dataset
-    dataset = load_dataset()
+    dataset = load_dataset(tokenizer)
 
     # Training config
     training_args = SFTConfig(
@@ -85,7 +81,7 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
         gradient_accumulation_steps=4,
         learning_rate=lr,
         weight_decay=0.01,
-        warmup_steps=10,
+        warmup_steps=50,
         logging_steps=5,
         save_steps=50,
         save_total_limit=2,
@@ -139,8 +135,8 @@ def train(epochs: int, lr: float, batch_size: int, export_gguf: bool) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument("--lr", type=float, default=2e-4)
+    parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--lr", type=float, default=5e-5)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--export-gguf", action="store_true")
     args = parser.parse_args()

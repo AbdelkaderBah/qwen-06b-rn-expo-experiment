@@ -29,10 +29,17 @@ RESULTS_DIR.mkdir(exist_ok=True)
 
 LM_STUDIO_BASE = "http://localhost:1234/v1"
 LM_STUDIO_URL = f"{LM_STUDIO_BASE}/chat/completions"
+LM_STUDIO_COMPLETIONS_URL = f"{LM_STUDIO_BASE}/completions"
 
 SYSTEM_PROMPT = """You are a React Native 0.82 and Expo expert.
 Answer with ONLY complete, runnable TypeScript/JSX code. No explanations, no markdown fences.
 Use functional components and hooks only."""
+
+COMPLETION_PROMPT_TEMPLATE = """### Instruction:
+{instruction}
+
+### Response:
+"""
 
 REPAIR_PROMPT = """The code you wrote has TypeScript errors. Fix the code and return ONLY the corrected complete code.
 No explanations, no markdown fences.
@@ -104,32 +111,51 @@ def load_bench() -> list[dict]:
 
 def query_model(model: str, instruction: str, *, system_role: bool = True,
                  temperature: float = 0.2, max_tokens: int = 2048, top_p: float = 1.0,
-                 seed: int | None = None) -> tuple[str, float, dict]:
+                 seed: int | None = None, completion_mode: bool = False,
+                 repetition_penalty: float | None = None) -> tuple[str, float, dict]:
     """Send instruction to LM Studio and return (response, duration_seconds, usage)."""
-    if system_role:
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": instruction},
-        ]
+    if completion_mode:
+        prompt = COMPLETION_PROMPT_TEMPLATE.format(instruction=instruction)
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": top_p,
+            "stop": ["### Instruction:", "\n\n\n"],
+        }
+        url = LM_STUDIO_COMPLETIONS_URL
     else:
-        messages = [
-            {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{instruction}"},
-        ]
-    payload = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "top_p": top_p,
-    }
+        if system_role:
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": instruction},
+            ]
+        else:
+            messages = [
+                {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{instruction}"},
+            ]
+        payload = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": top_p,
+        }
+        url = LM_STUDIO_URL
     if seed is not None:
         payload["seed"] = seed
+    if repetition_penalty is not None:
+        payload["repetition_penalty"] = repetition_penalty
     start = time.time()
-    r = httpx.post(LM_STUDIO_URL, json=payload, timeout=120.0)
+    r = httpx.post(url, json=payload, timeout=120.0)
     duration = time.time() - start
     r.raise_for_status()
     data = r.json()
-    content = data["choices"][0]["message"]["content"]
+    if completion_mode:
+        content = data["choices"][0]["text"]
+    else:
+        content = data["choices"][0]["message"]["content"]
     usage = data.get("usage", {})
     return content, duration, usage
 
@@ -147,39 +173,59 @@ def strip_fences(text: str) -> str:
 
 def query_repair(model: str, instruction: str, code: str, errors: str, *, system_role: bool = True,
                   temperature: float = 0.2, max_tokens: int = 2048, top_p: float = 1.0,
-                  seed: int | None = None) -> tuple[str, float, dict]:
-    prompt = REPAIR_PROMPT.format(instruction=instruction, code=code, errors=errors)
-    if system_role:
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ]
+                  seed: int | None = None, completion_mode: bool = False,
+                  repetition_penalty: float | None = None) -> tuple[str, float, dict]:
+    repair_text = REPAIR_PROMPT.format(instruction=instruction, code=code, errors=errors)
+    if completion_mode:
+        prompt = COMPLETION_PROMPT_TEMPLATE.format(instruction=repair_text)
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": top_p,
+            "stop": ["### Instruction:", "\n\n\n"],
+        }
+        url = LM_STUDIO_COMPLETIONS_URL
     else:
-        messages = [
-            {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{prompt}"},
-        ]
-    payload = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "top_p": top_p,
-    }
+        if system_role:
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": repair_text},
+            ]
+        else:
+            messages = [
+                {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{repair_text}"},
+            ]
+        payload = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": top_p,
+        }
+        url = LM_STUDIO_URL
     if seed is not None:
         payload["seed"] = seed
+    if repetition_penalty is not None:
+        payload["repetition_penalty"] = repetition_penalty
     start = time.time()
-    r = httpx.post(LM_STUDIO_URL, json=payload, timeout=120.0)
+    r = httpx.post(url, json=payload, timeout=120.0)
     duration = time.time() - start
     r.raise_for_status()
     data = r.json()
-    content = data["choices"][0]["message"]["content"]
+    if completion_mode:
+        content = data["choices"][0]["text"]
+    else:
+        content = data["choices"][0]["message"]["content"]
     usage = data.get("usage", {})
     return content, duration, usage
 
 
 def run_bench(model: str, dry_run: bool, max_repair: int = 0,
               temperature: float = 0.2, max_tokens: int = 2048, top_p: float = 1.0,
-              seed: int | None = None, quantization: str = "") -> None:
+              seed: int | None = None, quantization: str = "", completion_mode: bool = False,
+              repetition_penalty: float | None = None) -> None:
     questions = load_bench()
     bench_hash = hashlib.md5(BENCH.read_bytes()).hexdigest()[:8]
     print(f"📋 RN-Expo-Bench: {len(questions)} questions (v:{bench_hash})")
@@ -193,7 +239,7 @@ def run_bench(model: str, dry_run: bool, max_repair: int = 0,
             print(f"  [{q['id']}] ({q['difficulty']}) {q['instruction'][:80]}...")
         return
 
-    infer_kwargs = dict(temperature=temperature, max_tokens=max_tokens, top_p=top_p, seed=seed)
+    infer_kwargs = dict(temperature=temperature, max_tokens=max_tokens, top_p=top_p, seed=seed, completion_mode=completion_mode, repetition_penalty=repetition_penalty)
     results = []
     passed_at_1 = 0
     passed_after_repair = 0
@@ -373,8 +419,12 @@ if __name__ == "__main__":
     parser.add_argument("--top-p", type=float, default=1.0, help="Top-p sampling (default: 1.0)")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility")
     parser.add_argument("--quantization", default="", help="Model quantization label (e.g. Q4_K_M, Q8_0, FP16)")
+    parser.add_argument("--repetition-penalty", type=float, default=None, help="Repetition penalty (e.g. 1.15)")
+    parser.add_argument("--completion-mode", action="store_true", help="Use /v1/completions with ### Instruction format (for fine-tuned models)")
     parser.add_argument("--dry-run", action="store_true", help="Show questions only")
     args = parser.parse_args()
     run_bench(args.model, args.dry_run, args.repair,
               temperature=args.temperature, max_tokens=args.max_tokens,
-              top_p=args.top_p, seed=args.seed, quantization=args.quantization)
+              top_p=args.top_p, seed=args.seed, quantization=args.quantization,
+              completion_mode=args.completion_mode,
+              repetition_penalty=args.repetition_penalty)

@@ -73,6 +73,51 @@ def tsc_install(args):
     return run("cd eval/ts-checker && bun install")
 
 
+@task("responses", help="Show model responses [model] [--wrong|--correct] [--id N]")
+def responses(args):
+    import argparse
+    p = argparse.ArgumentParser()
+    p.add_argument("model", help="Model name (matches results file)")
+    p.add_argument("--wrong", action="store_true", help="Show only failed responses")
+    p.add_argument("--correct", action="store_true", help="Show only passed responses")
+    p.add_argument("--id", type=int, help="Show a specific question ID")
+    opts = p.parse_args(args)
+
+    results_dir = Path("eval/results")
+    # Find matching results file
+    candidates = list(results_dir.glob(f"{opts.model.replace('/', '_')}*.jsonl"))
+    candidates = [c for c in candidates if "_summary" not in c.name]
+    if not candidates:
+        print(f"No results found for '{opts.model}' in {results_dir}/")
+        return 1
+    results_file = candidates[0]
+
+    entries = [json.loads(l) for l in results_file.read_text().splitlines() if l.strip()]
+
+    if opts.id:
+        entries = [e for e in entries if e.get("id") == opts.id]
+    elif opts.wrong:
+        entries = [e for e in entries if e.get("status") != "pass"]
+    elif opts.correct:
+        entries = [e for e in entries if e.get("status") == "pass"]
+
+    if not entries:
+        print("No matching responses found.")
+        return 0
+
+    for e in entries:
+        status = "✅ PASS" if e.get("status") == "pass" else "❌ FAIL"
+        print(f"\n{'═' * 70}")
+        print(f"[{e.get('id')}] {status}  {e.get('category')}/{e.get('difficulty')}")
+        print(f"📝 {e.get('instruction', '')[:120]}")
+        if e.get("ts_error"):
+            print(f"🔴 {e['ts_error']}")
+        print(f"{'─' * 70}")
+        print(e.get("output", "(no output)"))
+    print(f"\n{'═' * 70}")
+    print(f"Showing {len(entries)} response(s) from {results_file.name}")
+
+
 @task("results", help="Show scoreboard from all benchmark runs")
 def results(args):
     results_dir = Path("eval/results")

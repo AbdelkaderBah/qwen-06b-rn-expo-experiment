@@ -2357,9 +2357,12 @@ dependencies = [
     { name = "httpx" },
     { name = "langchain" },
     { name = "marimo" },
+    { name = "protobuf" },
     { name = "python-dotenv" },
     { name = "ragas" },
     { name = "rank-bm25" },
+    { name = "sentencepiece" },
+    { name = "transformers" },
 ]
 
 [package.optional-dependencies]
@@ -2379,11 +2382,14 @@ requires-dist = [
     { name = "langchain", specifier = ">=1.2.13" },
     { name = "marimo", specifier = ">=0.21.1" },
     { name = "peft", marker = "extra == 'train'", specifier = ">=0.18.1" },
+    { name = "protobuf", specifier = ">=7.34.1" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "ragas", specifier = ">=0.4.3" },
     { name = "rank-bm25", specifier = ">=0.2.2" },
+    { name = "sentencepiece", specifier = ">=0.2.1" },
     { name = "torch", marker = "extra == 'train'", specifier = ">=2.10.0", index = "https://download.pytorch.org/whl/cu126" },
     { name = "torchvision", marker = "extra == 'train'", specifier = ">=0.25.0", index = "https://download.pytorch.org/whl/cu126" },
+    { name = "transformers", specifier = ">=4.57.2" },
     { name = "trl", marker = "extra == 'train'", specifier = ">=0.23.0" },
     { name = "unsloth", marker = "extra == 'train'", specifier = ">=2025.11.1" },
 ]

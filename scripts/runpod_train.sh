@@ -9,13 +9,13 @@ set -euo pipefail
 #   HF_REPO         — e.g. "your-username/qwen-06b-rn-expo"
 #
 # Optional env vars:
-#   EPOCHS          — default: 3
-#   LR              — default: 2e-4
+#   EPOCHS          — default: 5
+#   LR              — default: 5e-5
 #   BATCH_SIZE      — default: 4
 #   RUNPOD_POD_ID   — auto-set by RunPod, used for auto-stop
 
-EPOCHS="${EPOCHS:-3}"
-LR="${LR:-2e-4}"
+EPOCHS="${EPOCHS:-5}"
+LR="${LR:-5e-5}"
 BATCH_SIZE="${BATCH_SIZE:-4}"
 RUN_ID="$(date -u +%Y%m%d-%H%M%S)"
 
@@ -79,8 +79,8 @@ if merged_path.exists():
 # Save training params
 params = {
     "run_id": run_id,
-    "epochs": os.environ.get("EPOCHS", "3"),
-    "lr": os.environ.get("LR", "2e-4"),
+    "epochs": os.environ.get("EPOCHS", "5"),
+    "lr": os.environ.get("LR", "5e-5"),
     "batch_size": os.environ.get("BATCH_SIZE", "4"),
 }
 api.upload_file(
